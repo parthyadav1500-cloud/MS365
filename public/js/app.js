@@ -175,6 +175,7 @@ function head(small, title) {
 let TAB = "route";
 function render() {
   const v = $("#view");
+  v.dataset.tab = TAB; /* lets the desktop CSS lay out each tab differently */
   if (TAB === "route") v.innerHTML = viewRoute();
   else if (TAB === "practice") v.innerHTML = viewPractice();
   else if (TAB === "lab") v.innerHTML = viewLab();
