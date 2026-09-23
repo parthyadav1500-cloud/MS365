@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Route to D365 Consultant</title>
+<meta name="description" content="Learn Microsoft Dynamics 365 Sales from zero to the AB-210 exam: animated lessons, guided trial setup, screen tours, how-to guides, quizzes and an AI trainer.">
+<meta name="theme-color" content="#17212B">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚉</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <span class="logo"><svg viewBox="0 0 26 26" aria-hidden="true"><path d="M5 20V13a4 4 0 0 1 4-4h12" fill="none" stroke="var(--f)" stroke-width="4" stroke-linecap="round"/><circle cx="5" cy="20" r="3.6" fill="var(--surface)" stroke="var(--s)" stroke-width="3"/><circle cx="21" cy="9" r="3.6" fill="var(--surface)" stroke="var(--a)" stroke-width="3"/></svg>Route to D365</span>
+  <span class="top-meta"><span id="streak"></span><span id="sync" class="sync"></span></span>
+</div></header>
+<main id="view"></main>
+<nav class="tabs" aria-label="Sections"><div class="tabs-in">
+  <button data-act="tab" data-tab="route"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6v4a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4"/><circle cx="6" cy="4" r="2"/><circle cx="18" cy="20" r="2"/></svg>Route</button>
+  <button data-act="tab" data-tab="practice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>Practice</button>
+  <button data-act="tab" data-tab="lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/><path d="M7.5 15h9"/></svg>Lab</button>
+  <button data-act="tab" data-tab="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Plan</button>
+</div></nav>
+<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Study screen"></div>
+<button id="fab" data-act="help" aria-label="Help">?&nbsp;Help</button>
+<div id="help" class="sheet help-sheet" hidden role="dialog" aria-modal="true" aria-label="Help"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<!-- Classic scripts share one global scope. Keep this order: content files, then app, then boot. -->
+<script src="js/ai.js" defer></script>
+<script src="js/data.js" defer></script>
+<script src="js/qbank.js" defer></script>
+<script src="js/lab.js" defer></script>
+<script src="js/app.js" defer></script>
+<script src="js/labui.js" defer></script>
+<script src="js/boot.js" defer></script>
+</body>
+</html>

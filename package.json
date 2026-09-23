@@ -1,0 +1,13 @@
+{
+  "name": "d365-route",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Route to D365 Consultant: a Dynamics 365 Sales learning app (lessons, lab, quizzes, AI trainer).",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "preview": "npx serve public",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": { "node": ">=18" }
+}
