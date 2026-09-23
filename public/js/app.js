@@ -15,7 +15,7 @@ function qById(id) { return allQuestions().find(q => q.id === id); }
 /* ===== state & saving ===== */
 const LS_KEY = "d365route.v1";
 function freshState() {
-  return { v: 2, done: {}, qs: {}, cards: {}, tasks: {}, days: {}, mocks: [], extra: [], guides: {}, tours: {}, setup: {}, voice: true, rate: 1, theme: "auto", exams: { "210": "2026-11-12", "730": "2026-11-26" } };
+  return { v: 2, done: {}, qs: {}, cards: {}, tasks: {}, days: {}, mocks: [], extra: [], guides: {}, tours: {}, setup: {}, notes: {}, voice: true, rate: 1, theme: "auto", exams: { "210": "2026-11-12", "730": "2026-11-26" } };
 }
 function mergeState(s) {
   const b = freshState();
@@ -35,7 +35,7 @@ function combine(a, b) { /* merge two progress states without losing either side
   for (const k of Object.keys(a.qs)) if (!o.qs[k] || (a.qs[k].n || 0) > (o.qs[k].n || 0)) o.qs[k] = a.qs[k];
   for (const k of Object.keys(a.cards)) o.cards[k] = Math.max(o.cards[k] || 0, a.cards[k] || 0);
   for (const k of Object.keys(a.tasks)) if (a.tasks[k]) o.tasks[k] = true;
-  ["guides", "tours", "setup"].forEach(f => { for (const k of Object.keys(a[f] || {})) if (!o[f][k]) o[f][k] = a[f][k]; });
+  ["guides", "tours", "setup", "notes"].forEach(f => { for (const k of Object.keys(a[f] || {})) if (!o[f][k]) o[f][k] = a[f][k]; });
   for (const k of Object.keys(a.days)) o.days[k] = 1;
   const seen = new Set(o.mocks.map(m => m.x + m.at + m.s));
   a.mocks.forEach(m => { if (!seen.has(m.x + m.at + m.s)) o.mocks.push(m); });
@@ -157,18 +157,112 @@ function paintSync() {
 function paintHeader() { const s = streak(); const x = xpInfo(); const el = $("#streak"); if (el) { el.textContent = "Lv " + x.lvl + (s ? "  🔥 " + s : ""); el.title = x.xp + " XP" + (s ? ", " + s + "-day streak" : ""); } paintSync(); }
 let toastT = null;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600); }
-function showSheet(html) { const sh = $("#sheet"); sh.innerHTML = '<div class="sheet-in">' + html + "</div>"; sh.hidden = false; document.body.classList.add("locked", "insheet"); }
-function setSheet(html, keepScroll) { const sh = $("#sheet"); const y = sh.scrollTop; sh.innerHTML = '<div class="sheet-in">' + html + "</div>"; sh.scrollTop = keepScroll ? y : 0; }
+/* Every study screen opens inside the course player: content, then lecture navigation and tabs,
+ * with a "Course content" sidebar (desktop) or drawer (phone). The chrome is built once and kept
+ * while you move between items, so the sidebar keeps its scroll position. */
+function showSheet(html) {
+  const sh = $("#sheet");
+  if (sh.hidden || !$("#pmain")) {
+    sh.innerHTML = '<div class="player">' + playerTop() + '<div class="p-body"><div class="p-main" id="pmain"><div class="sheet-in"></div><div class="p-extra" id="pextra"></div></div><aside class="p-side" id="pside" aria-label="Course content"></aside></div></div>';
+    sh.hidden = false; document.body.classList.add("locked", "insheet");
+  }
+  if (!wideScreen()) document.body.classList.remove("cc-t");
+  setSheet(html);
+}
+function setSheet(html, keepScroll) {
+  const sh = $("#sheet"), main = $("#pmain"); const y1 = sh.scrollTop, y2 = main.scrollTop;
+  $("#pmain > .sheet-in").innerHTML = html;
+  paintCourse();
+  sh.scrollTop = keepScroll ? y1 : 0; main.scrollTop = keepScroll ? y2 : 0;
+}
 function closeSheet() {
   stopSpeech();
   if (P) { clearTimeout(P.timer); P = null; }
   if (M && M.tick) clearInterval(M.tick);
   D = null; M = null; F = null; SIM = null; G = null; TOUR = null; SET = null;
+  PC.last = null;
   const sh = $("#sheet"); sh.hidden = true; sh.innerHTML = ""; document.body.classList.remove("locked", "insheet");
+  if (!wideScreen()) document.body.classList.remove("cc-t");
   render();
 }
 function head(small, title) {
-  return '<header class="s-head"><button class="icon" data-act="close" aria-label="Close">✕</button><div class="grow"><small>' + esc(small) + "</small><h2>" + esc(title) + '</h2></div><button class="hbtn" data-act="help" aria-label="Help">? Help</button></header>';
+  return '<header class="s-head"><button class="icon" data-act="close" aria-label="Close">✕</button><div class="grow"><small>' + esc(small) + "</small><h2>" + esc(title) + '</h2></div><button class="icon cc-btn" data-act="curr" aria-label="Course content">☰</button><button class="hbtn" data-act="help" aria-label="Help">? Help</button></header>';
+}
+
+/* ===== COURSE PLAYER (Udemy-style chrome) ===== */
+const PC = { last: null, tab: "overview", open: new Set(), reveal: false };
+function wideScreen() { return window.matchMedia("(min-width: 1024px)").matches; }
+function curItem() { if (P) return "L:" + P.id; if (M) return "X:" + M.x; if (TOUR) return "T:" + TOUR.id; if (G) return "G:" + G.id; if (SET) return "setup"; return ""; }
+function fmtMins(m) { return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60 ? (m % 60) + "m" : "") : m + "m"; }
+function courseSections() {
+  const secs = [{ key: "start", title: "Get started", items: [{ key: "setup", icon: "🛠️", title: "Set up your own Dynamics 365 trial", meta: SETUP.length + " steps", mins: 45, done: setupCount() === SETUP.length, act: 'data-act="setup"' }] }];
+  let sec = null;
+  ROUTE.forEach(id => {
+    if (EXAM_STOPS[id]) {
+      const x = EXAM_STOPS[id].exam; const ex = EXAMS[x];
+      sec.items.push({ key: "X:" + x, icon: "📝", title: ex.code + " mock exam", meta: ex.mock + " questions", mins: ex.mins, done: bestMock(x) != null, act: 'data-act="mock" data-exam="' + x + '"' });
+      return;
+    }
+    const L = LESSON[id];
+    if (!sec || sec.line !== L.line) { sec = { key: "line" + L.line, line: L.line, title: LINES[L.line].name, items: [] }; secs.push(sec); }
+    sec.items.push({ key: "L:" + id, icon: "▶", title: L.title, meta: L.scenes.length + " scenes", mins: L.mins, done: !!S.done[id], act: 'data-act="open" data-id="' + id + '"' });
+  });
+  secs.push({ key: "tours", title: "Screen tours", items: TOURS.map(t => ({ key: "T:" + t.id, icon: "🖥️", title: t.title, meta: t.app, done: !!S.tours[t.id], act: 'data-act="tour" data-id="' + t.id + '"' })) });
+  secs.push({ key: "guides", title: "How-to guides", items: GUIDES.map(g => ({ key: "G:" + g.id, icon: "📘", title: g.title, meta: g.steps.length + " steps", mins: g.mins, done: !!S.guides[g.id], act: 'data-act="guide" data-id="' + g.id + '"' })) });
+  return secs;
+}
+function playerTop() {
+  const ex = EXAMS["210"];
+  return '<header class="p-top"><button class="p-back" data-act="close" aria-label="Back to your dashboard">✕</button><span class="p-brand">Route to D365</span><span class="p-course">' + esc(ex.code + ": " + ex.name) + '</span><span class="p-prog" id="pprog"></span><button class="p-btn" data-act="help">? Ask the trainer</button><button class="p-btn" data-act="curr">Course content</button></header>';
+}
+function paintCourse() {
+  const side = $("#pside"); if (!side) return;
+  const secs = courseSections(); const all = secs.flatMap(s => s.items); const cur = curItem();
+  if (cur !== PC.last) {
+    PC.last = cur; PC.tab = "overview"; PC.reveal = true;
+    const s = secs.find(s => s.items.some(i => i.key === cur)); if (s) PC.open.add(s.key);
+  }
+  const y = side.scrollTop;
+  side.innerHTML = '<div class="cs-head"><h2>Course content</h2><button class="icon cs-x" data-act="curr" aria-label="Hide course content">✕</button></div>' + secs.map((s, si) => {
+    const n = s.items.filter(i => i.done).length; const mins = s.items.reduce((a, i) => a + (i.mins || 0), 0);
+    return '<details class="cs-sec" data-sec="' + s.key + '"' + (PC.open.has(s.key) ? " open" : "") + '><summary><b>Section ' + (si + 1) + ": " + esc(s.title) + "</b><small>" + n + " / " + s.items.length + (mins ? " | " + fmtMins(mins) : "") + "</small></summary>" +
+      s.items.map((it, k) => '<button class="cs-item' + (it.key === cur ? " on" : "") + (it.done ? " done" : "") + '" ' + it.act + (it.key === cur ? ' aria-current="true"' : "") + '><span class="cs-tick" aria-hidden="true"></span><span class="cs-t"><span>' + (k + 1) + ". " + esc(it.title) + (it.done ? '<span class="sr">, completed</span>' : "") + "</span><small>" + it.icon + " " + esc(it.meta) + (it.mins ? " · " + it.mins + " min" : "") + "</small></span></button>").join("") + "</details>";
+  }).join("");
+  side.scrollTop = y;
+  if (PC.reveal) { PC.reveal = false; const on = side.querySelector(".cs-item.on"); if (on) on.scrollIntoView({ block: "nearest" }); }
+  const done = all.filter(i => i.done).length; const pct = all.length ? done / all.length : 0;
+  const pr = $("#pprog");
+  if (pr) pr.innerHTML = '<svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="4"/><circle cx="18" cy="18" r="15" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-dasharray="' + (pct * 94.25).toFixed(1) + ' 94.25" transform="rotate(-90 18 18)"/></svg><span>' + done + " of " + all.length + " complete</span>";
+  paintExtra(all, cur);
+}
+function paintExtra(all, cur) {
+  const ex = $("#pextra"); if (!ex) return;
+  if (!all) { all = courseSections().flatMap(s => s.items); cur = curItem(); }
+  const i = all.findIndex(it => it.key === cur);
+  if (i < 0) { ex.innerHTML = ""; return; }
+  const prev = all[i - 1], next = all[i + 1];
+  let h = '<nav class="p-nav" aria-label="Lecture navigation">' + (prev ? '<button class="btn ghost small" ' + prev.act + '><span>‹ Previous</span><small>' + esc(prev.title) + "</small></button>" : "<span></span>") +
+    (next ? '<button class="btn small" ' + next.act + '><span>Next ›</span><small>' + esc(next.title) + "</small></button>" : "") + "</nav>";
+  if (P) h += lessonTabs(LESSON[P.id]);
+  ex.innerHTML = h;
+}
+function lessonTabs(L) {
+  const tabs = [["overview", "Overview"], ["notes", "Notes"], ["resources", "Resources"], ["qa", "Ask the trainer"]];
+  let pane = "";
+  if (PC.tab === "notes") {
+    pane = '<label class="fld"><span>Your notes for this lecture, saved in this browser</span><textarea class="pnote" id="pnote" data-id="' + L.id + '" rows="7" placeholder="Type your notes here…">' + esc(S.notes[L.id] || "") + '</textarea></label><p class="muted small" id="pnotesaved" aria-live="polite"></p>';
+  } else if (PC.tab === "resources") {
+    const gs = GUIDES.filter(g => g.lesson === L.id);
+    pane = '<div class="links">' + L.links.map(linkHtml).join("") + "</div>" +
+      (gs.length ? '<h3 class="sec" style="margin-top:20px">Step-by-step guides</h3><div class="acts">' + gs.map(g => act(S.guides[g.id] ? "✅" : "📘", g.title, g.where + ", " + g.steps.length + " steps", "guide", 'data-id="' + g.id + '"', "var(--s)")).join("") + "</div>" : "");
+  } else if (PC.tab === "qa") {
+    pane = '<p class="muted">Ask the AI trainer anything about this lecture. It knows which lecture you are on.</p><div class="chips">' +
+      ["Explain this lecture in simpler words", "Give me a real FMCG example of this", "Quiz me with 3 questions on this lecture", "What do people get wrong about this in the exam?"].map(q => '<button class="chip" data-act="askl" data-t="' + esc(q) + '">' + esc(q) + "</button>").join("") + "</div>";
+  } else {
+    pane = '<p class="muted">' + esc(LINES[L.line].name) + " · Station " + L.id + " · " + L.mins + " min · " + L.scenes.length + " animated scenes with checkpoint questions</p>" +
+      '<div class="learn"><h3>What you\'ll learn</h3><ul>' + L.keys.map(k => "<li>" + esc(k) + "</li>").join("") + "</ul></div>";
+  }
+  return '<div class="p-tabs" role="tablist" aria-label="About this lecture">' + tabs.map(t => '<button role="tab" data-act="ptab" data-t="' + t[0] + '" aria-selected="' + (PC.tab === t[0]) + '">' + t[1] + "</button>").join("") + '</div><div class="p-pane" role="tabpanel">' + pane + "</div>";
 }
 
 /* ===== ROUTE (home) ===== */
@@ -721,7 +815,10 @@ let resetArmed = false, resetT = null;
 /* ===== events ===== */
 const ACT = {
   tab: b => { TAB = b.dataset.tab; render(); window.scrollTo(0, 0); },
-  open: b => openLesson(b.dataset.id),
+  open: b => { closeOverlaysQuiet(); openLesson(b.dataset.id); },
+  curr: () => document.body.classList.toggle("cc-t"),
+  ptab: b => { PC.tab = b.dataset.t; paintExtra(); },
+  askl: b => { const L = P && LESSON[P.id]; goCoach(b.dataset.t + (L ? " (Lecture " + L.id + ": " + L.title + ". Key ideas: " + L.keys.join(" ") + ")" : "")); },
   close: () => closeSheet(),
   pstep: b => {
     const i = +b.dataset.i; if (!P) return;
@@ -834,6 +931,18 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey && e.target.id === "helpbox") { e.preventDefault(); ACT.coachsend(); }
   if (e.key === "Escape") { if (!$("#help").hidden) closeHelp(); else if (!$("#sheet").hidden) closeSheet(); }
 });
+let noteT = null;
+document.addEventListener("input", e => {
+  const t = e.target; if (t.id !== "pnote") return;
+  const id = t.dataset.id; const v = t.value.slice(0, 20000);
+  if (v.trim()) S.notes[id] = v; else delete S.notes[id];
+  clearTimeout(noteT); noteT = setTimeout(() => { save(); const m = $("#pnotesaved"); if (m) m.textContent = "Saved"; }, 600);
+});
+/* remember which "Course content" sections are expanded (toggle doesn't bubble, so listen in capture) */
+document.addEventListener("toggle", e => {
+  const d = e.target; if (!d.classList || !d.classList.contains("cs-sec")) return;
+  if (d.open) PC.open.add(d.dataset.sec); else PC.open.delete(d.dataset.sec);
+}, true);
 document.addEventListener("change", e => {
   const t = e.target; const c = t.dataset && t.dataset.chg; if (!c) return;
   if (c === "voice" || c === "voicedef") { S.voice = t.checked; if (!S.voice) stopSpeech(); save(); }

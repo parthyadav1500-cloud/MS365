@@ -2,7 +2,7 @@
 
 A mobile-first learning app that takes a complete beginner from zero to the Microsoft **AB-210 (Dynamics 365 Sales AI Consultant)** exam.
 
-- **Learn:** 19 animated lessons with voice narration, arranged as a train-map route, with a checkpoint quiz after every stage.
+- **Learn:** 19 animated lessons with voice narration, arranged as a train-map route, with a checkpoint quiz after every stage. Lessons, tours, guides and mocks open in a Udemy-style course player with a "Course content" sidebar and per-lecture notes.
 - **Lab:** 10-step guided trial setup, 6 interactive screen tours with "find it" quizzes, and 17 how-to guides with "show me where" screens.
 - **Practice:** drills, flashcards, a Sales Hub simulator, timed mock exams, readiness bars and a glossary.
 - **Plan:** an 8-week schedule with exam countdowns.
@@ -78,7 +78,7 @@ Alternatively, deploy from the terminal: `vercel` for a preview, `vercel --prod`
 
 ## Where progress is saved
 
-Progress (lessons, quiz answers, flashcards, guides, tours, setup, plan ticks, mock scores) is saved in the browser's `localStorage` under the key `d365route.v1`. **Plan → Settings → Export / Import** makes a JSON backup, for example to move between phone and laptop.
+Progress (lessons, quiz answers, flashcards, guides, tours, setup, plan ticks, mock scores, lecture notes) is saved in the browser's `localStorage` under the key `d365route.v1`. **Plan → Settings → Export / Import** makes a JSON backup, for example to move between phone and laptop.
 
 ## Editing content
 
